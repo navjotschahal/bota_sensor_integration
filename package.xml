@@ -17,6 +17,9 @@
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>visualization_msgs</depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
   <depend>diagnostic_updater</depend>
   <depend>diagnostic_msgs</depend>
 

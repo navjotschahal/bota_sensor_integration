@@ -33,6 +33,7 @@ sensor --(Bota Socket / EtherCAT / USB)--> [container: bota-driver + bota_forwar
 | `scripts/bota_container.sh` | `build / start <config> / stop / logs / status / shell` |
 | `scripts/bota_stream_probe.py` | ROS-free check: `--status`, `--tare`, `--listen N` |
 | `scripts/bota_tare.py` | calls `/bota/tare` |
+| `scripts/bota_estimator_tf_calib.py` | temporary base->sensor TF solved from estimator vs sensor pushes |
 | `launch/bota_ft_sensor.launch` | starts the node (optionally the container and RViz too) |
 | `config/bota_force.rviz` | RViz view: force arrow, sensor axes, TF |
 
@@ -118,6 +119,31 @@ draws the reaction force (what the robot feels) instead of the measured one;
 filtered; only the arrow is. The TF from the sensor to the robot is left to the
 consumer: once the mocap-tracked probe exists, publish `world -> <frame_id>` and
 set the RViz fixed frame to the robot base to see the arrow at the contact point.
+
+## Temporary sensor TF from the contact estimator (no mocap)
+
+Until the mocap probe exists, `bota_estimator_tf_calib.py` aligns the sensor
+frame to the robot base using the estimator itself, so both force arrows can be
+viewed together:
+
+```bash
+# APCF joint grid filter running (cpf_bringup.launch launch_apcf_grid:=true), sensor tared, node + rviz up
+rosrun bota_ft_sensor bota_estimator_tf_calib.py _estimator:=apcf _save:=/tmp/bota_tf.yaml
+# push the robot firmly (> 4 N) in 3 clearly different directions, same grip
+rosservice call /bota_estimator_tf_calib/freeze     # stop refining
+rosservice call /bota_estimator_tf_calib/reset      # after changing grip
+rosrun bota_ft_sensor bota_estimator_tf_calib.py _load:=/tmp/bota_tf.yaml   # replay later
+```
+
+It segments pushes where both |F_sensor| and |F_estimator| exceed `min_force`,
+averages each push into one direction pair, solves the rotation (Kabsch) once
+`min_pushes` distinct directions exist, and broadcasts `base_frame ->
+sensor_frame` with the translation following the estimator's contact point. In
+RViz set the fixed frame to `panda_link0`.
+
+Limits: valid only for the grip used during the pushes; direction agreement in
+the calibration directions is tautological, so judge magnitude, timing and new
+directions. The mocap probe replaces this.
 
 ## Multiple sensors
 
