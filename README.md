@@ -134,8 +134,11 @@ roslaunch bota_ft_sensor bota_apcf_compare.launch         # markers + live plot 
   (`gauge_xyz`) with the sensor force arrow in sensor axes, red/blue bars for
   |F| sensor vs |f| APCF, a red sphere at APCF's contact point sized by the sensor
   |F|, and a text HUD with ratio, in_contact, link, existence and the last push summary.
-* **Live plot** (system matplotlib, TkAgg): |F| sensor vs APCF with in_contact
-  shading, APCF detector statistic vs threshold and existence, sensor fx/fy/fz.
+* **Live plot** (system matplotlib, TkAgg), 3x2: left column |F| sensor vs APCF
+  with in_contact shading, APCF detector statistic vs threshold and existence,
+  APCF contact point xyz; right column fx, fy, fz each with Bota (sensor frame)
+  and APCF (base frame). Components are in different frames until the sensor is
+  oriented to the robot, so compare shapes and timing, not signs.
 * **CSV** in `out_dir` (default `~/bota_tests/<timestamp>/`): `samples.csv`
   (one row per APCF message with the time-matched sensor frame), `sensor.csv`
   (raw 1 kHz stream), `pushes.csv` (per push: duration, mean |F| both, ratio,

@@ -10,8 +10,10 @@ Outputs
                          the APCF RViz: sensor-force arrow (sensor axes) on a gauge
                          beside the robot, |F| bars sensor vs APCF, a sphere at the
                          APCF contact point sized by the sensor |F|, and a text HUD.
-  matplotlib window      |F| sensor vs APCF with contact shading; detector statistic
-                         vs threshold and existence; sensor force components.
+  matplotlib window      left: |F| sensor vs APCF with contact shading, detector
+                         statistic vs threshold + existence, APCF contact point;
+                         right: fx, fy, fz each with Bota (sensor frame) and APCF
+                         (base frame).
   <out_dir>/samples.csv  one row per APCF message with the time-matched sensor frame
   <out_dir>/sensor.csv   raw sensor stream (~1 kHz) if ~record_sensor_raw
   <out_dir>/pushes.csv   one row per push: means, ratio, latencies, angle test
@@ -322,23 +324,40 @@ class Compare:
         matplotlib.use("TkAgg")
         import matplotlib.pyplot as plt
         plt.ion()
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True, figsize=(11, 8))
+        fig, axs = plt.subplots(3, 2, sharex=True, figsize=(15, 8.5))
         try:  # matplotlib >= 3.4
             fig.canvas.manager.set_window_title("Bota sensor vs APCF joint-grid estimator")
         except AttributeError:  # matplotlib 3.1 on Ubuntu 20.04
             fig.canvas.set_window_title("Bota sensor vs APCF joint-grid estimator")
-        l_s, = ax1.plot([], [], "r-", lw=1.2, label="Bota |F| [N]")
-        l_e, = ax1.plot([], [], "b-", lw=1.2, label="APCF |f| [N]")
-        ax1.axhline(self.thr_on, color="gray", ls=":", lw=0.8)
-        ax1.set_ylabel("force [N]"); ax1.legend(loc="upper left"); ax1.grid(alpha=0.3)
-        l_st, = ax2.plot([], [], "k-", lw=1.0, label="APCF detector statistic")
-        l_th, = ax2.plot([], [], "m--", lw=1.0, label="threshold")
-        ax2b = ax2.twinx()
-        l_ex, = ax2b.plot([], [], "g-", lw=1.0, label="existence")
-        ax2b.set_ylim(-0.05, 1.05); ax2b.set_ylabel("existence")
-        ax2.set_ylabel("statistic"); ax2.legend(loc="upper left"); ax2b.legend(loc="upper right"); ax2.grid(alpha=0.3)
-        l_fx, = ax3.plot([], [], lw=0.9, label="fx"); l_fy, = ax3.plot([], [], lw=0.9, label="fy"); l_fz, = ax3.plot([], [], lw=0.9, label="fz")
-        ax3.set_ylabel("Bota force [N]"); ax3.set_xlabel("time [s]"); ax3.legend(loc="upper left"); ax3.grid(alpha=0.3)
+        ax_n, ax_x = axs[0]
+        ax_d, ax_y = axs[1]
+        ax_p, ax_z = axs[2]
+        RED, BLUE = "#d62728", "#1f77b4"
+        # left column: magnitude, detector, APCF contact point
+        l_sn, = ax_n.plot([], [], color=RED, lw=1.2, label="Bota |F|")
+        l_en, = ax_n.plot([], [], color=BLUE, lw=1.2, label="APCF |f|")
+        ax_n.axhline(self.thr_on, color="gray", ls=":", lw=0.8)
+        ax_n.set_ylabel("|force| [N]"); ax_n.legend(loc="upper left"); ax_n.grid(alpha=0.3)
+        ax_n.set_title("magnitude (frame-independent); shaded = APCF in_contact", fontsize=10)
+        l_st, = ax_d.plot([], [], "k-", lw=1.0, label="APCF detector statistic")
+        l_th, = ax_d.plot([], [], "m--", lw=1.0, label="threshold")
+        ax_db = ax_d.twinx()
+        l_ex, = ax_db.plot([], [], "g-", lw=1.0, label="existence")
+        ax_db.set_ylim(-0.05, 1.05); ax_db.set_ylabel("existence")
+        ax_d.set_ylabel("statistic"); ax_d.legend(loc="upper left"); ax_db.legend(loc="upper right"); ax_d.grid(alpha=0.3)
+        l_px, = ax_p.plot([], [], lw=0.9, label="px"); l_py, = ax_p.plot([], [], lw=0.9, label="py"); l_pz, = ax_p.plot([], [], lw=0.9, label="pz")
+        ax_p.set_ylabel("APCF contact point [m]"); ax_p.set_xlabel("time [s]"); ax_p.legend(loc="upper left"); ax_p.grid(alpha=0.3)
+        # right column: components, Bota (sensor frame) vs APCF (base frame)
+        comp = []
+        for ax, name in ((ax_x, "x"), (ax_y, "y"), (ax_z, "z")):
+            ls, = ax.plot([], [], color=RED, lw=1.0, label="Bota f%s (sensor frame)" % name)
+            le, = ax.plot([], [], color=BLUE, lw=1.0, label="APCF f%s (%s)" % (name, self.base_frame))
+            ax.axhline(0.0, color="gray", lw=0.6)
+            ax.set_ylabel("f%s [N]" % name); ax.legend(loc="upper left", fontsize=8); ax.grid(alpha=0.3)
+            comp.append((ls, le))
+        ax_x.set_title("components: different frames until the sensor is oriented to the robot", fontsize=10)
+        ax_z.set_xlabel("time [s]")
+        fig.tight_layout()
         shades = []
         while not rospy.is_shutdown() and plt.fignum_exists(fig.number):
             with self.lock:
@@ -347,6 +366,8 @@ class Compare:
                     ts = np.fromiter(self.s_t, float) - now
                     F = np.array(self.s_f); Fn = np.fromiter(self.s_n, float)
                     te = np.fromiter(self.e_t, float) - now if self.e_t else np.array([])
+                    E = np.array(self.e_f) if self.e_f else np.zeros((0, 3))
+                    P = np.array(self.e_p) if self.e_p else np.zeros((0, 3))
                     En = np.fromiter(self.e_n, float) if self.e_n else np.array([])
                     Ex = np.fromiter(self.e_ex, float) if self.e_ex else np.array([])
                     tst = np.fromiter(self.st_t, float) - now if self.st_t else np.array([])
@@ -357,11 +378,16 @@ class Compare:
                 else:
                     ts = None
             if ts is not None:
-                l_s.set_data(ts, Fn); l_e.set_data(te, En)
+                l_sn.set_data(ts, Fn); l_en.set_data(te, En)
                 l_st.set_data(tst, St); l_th.set_data(tst, Th); l_ex.set_data(te, Ex)
-                l_fx.set_data(ts, F[:, 0]); l_fy.set_data(ts, F[:, 1]); l_fz.set_data(ts, F[:, 2])
-                for s in shades:
-                    s.remove()
+                if P.shape[0]:
+                    l_px.set_data(te, P[:, 0]); l_py.set_data(te, P[:, 1]); l_pz.set_data(te, P[:, 2])
+                for i, (ls, le) in enumerate(comp):
+                    ls.set_data(ts, F[:, i])
+                    if E.shape[0]:
+                        le.set_data(te, E[:, i])
+                for sh in shades:
+                    sh.remove()
                 shades = []
                 if len(tc) > 1:
                     on = None
@@ -369,16 +395,21 @@ class Compare:
                         if v and on is None:
                             on = tt
                         elif not v and on is not None:
-                            shades.append(ax1.axvspan(on, tt, color="b", alpha=0.08)); on = None
+                            shades.append(ax_n.axvspan(on, tt, color=BLUE, alpha=0.08)); on = None
                     if on is not None:
-                        shades.append(ax1.axvspan(on, 0.0, color="b", alpha=0.08))
-                ax1.set_xlim(-self.window, 0.0)
+                        shades.append(ax_n.axvspan(on, 0.0, color=BLUE, alpha=0.08))
+                ax_n.set_xlim(-self.window, 0.0)
                 ymax = max(1.0, float(Fn.max()) if Fn.size else 1.0, float(En.max()) if En.size else 1.0)
-                ax1.set_ylim(-0.05 * ymax, 1.15 * ymax)
+                ax_n.set_ylim(-0.05 * ymax, 1.15 * ymax)
                 if St.size:
-                    ax2.set_ylim(min(0.0, float(np.nanmin(St))), 1.15 * max(float(np.nanmax(St)), float(np.nanmax(Th)) if Th.size else 1.0, 1e-6))
-                fmax = max(1.0, float(np.abs(F).max()) if F.size else 1.0)
-                ax3.set_ylim(-1.1 * fmax, 1.1 * fmax)
+                    ax_d.set_ylim(min(0.0, float(np.nanmin(St))),
+                                  1.15 * max(float(np.nanmax(St)), float(np.nanmax(Th)) if Th.size else 1.0, 1e-6))
+                if P.shape[0] and np.isfinite(P).any():
+                    lo, hi = np.nanmin(P), np.nanmax(P)
+                    ax_p.set_ylim(lo - 0.05, hi + 0.05)
+                fmax = max(1.0, float(np.abs(F).max()) if F.size else 1.0, float(np.abs(E).max()) if E.size else 1.0)
+                for ax in (ax_x, ax_y, ax_z):
+                    ax.set_ylim(-1.1 * fmax, 1.1 * fmax)
                 fig.canvas.draw_idle()
             plt.pause(0.1)
 
