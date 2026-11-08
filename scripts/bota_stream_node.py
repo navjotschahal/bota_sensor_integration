@@ -5,6 +5,8 @@ Published (under the node's private namespace, default node name "bota"):
   ~wrench       geometry_msgs/WrenchStamped   force [N], torque [Nm]
   ~imu          sensor_msgs/Imu               linear acc [m/s^2], angular rate [rad/s]
   ~temperature  sensor_msgs/Temperature       [deg C]
+  ~force_marker visualization_msgs/Marker     RViz arrow of the measured force at the frame origin
+  ~force_norm   std_msgs/Float64              |F| [N], for rqt_plot
   /diagnostics  rate, drops, status flags, driver state
 Services:
   ~tare         std_srvs/Trigger  -> hardware tare through the driver (deactivate, tare, activate)
@@ -17,6 +19,15 @@ Parameters:
                       smoother spacing at the cost of a constant unknown offset
   ~publish_invalid (false)  publish frames whose status.invalid bit is set
   ~timeout (1.0)      seconds without frames before a diagnostics error is raised
+  ~marker/enable (true)       publish the RViz arrow
+  ~marker/frame_id (frame_id) frame the arrow is drawn in (TF chain to come: mocap probe)
+  ~marker/rate (30.0)         Hz, RViz cannot use 1 kHz
+  ~marker/filter_hz (8.0)     first-order low-pass on the displayed vector, 0 = off
+  ~marker/scale (0.02)        metres of arrow per newton
+  ~marker/min_force (0.3)     N, below this the arrow is hidden
+  ~marker/negate (false)      draw the reaction (what the robot feels) instead of the measured force
+  ~marker/show_torque (false) second arrow for torque, metres per Nm = marker/scale * 10
+  ~marker/color ([1.0, 0.2, 0.1, 0.9]) RGBA of the force arrow
 """
 import socket
 import threading
@@ -24,9 +35,11 @@ import threading
 import rospy
 import diagnostic_updater
 from diagnostic_msgs.msg import DiagnosticStatus
-from geometry_msgs.msg import WrenchStamped
+from geometry_msgs.msg import Point, WrenchStamped
 from sensor_msgs.msg import Imu, Temperature
+from std_msgs.msg import Float64
 from std_srvs.srv import Trigger, TriggerResponse
+from visualization_msgs.msg import Marker
 
 from bota_ft_sensor import stream_protocol as sp
 
@@ -45,6 +58,24 @@ class BotaStreamNode:
         self.pub_imu = rospy.Publisher("~imu", Imu, queue_size=10)
         self.pub_temp = rospy.Publisher("~temperature", Temperature, queue_size=2)
         self.srv_tare = rospy.Service("~tare", Trigger, self.on_tare)
+
+        # RViz force arrow (display only; the data topics above stay unfiltered)
+        self.marker_enable = bool(rospy.get_param("~marker/enable", True))
+        self.marker_frame = rospy.get_param("~marker/frame_id", self.frame_id)
+        self.marker_period = 1.0 / max(float(rospy.get_param("~marker/rate", 30.0)), 1e-3)
+        self.marker_filter_hz = float(rospy.get_param("~marker/filter_hz", 8.0))
+        self.marker_scale = float(rospy.get_param("~marker/scale", 0.02))
+        self.marker_min_force = float(rospy.get_param("~marker/min_force", 0.3))
+        self.marker_negate = bool(rospy.get_param("~marker/negate", False))
+        self.marker_show_torque = bool(rospy.get_param("~marker/show_torque", False))
+        color = rospy.get_param("~marker/color", [1.0, 0.2, 0.1, 0.9])
+        self.marker_color = [float(c) for c in color] if len(color) == 4 else [1.0, 0.2, 0.1, 0.9]
+        self.pub_marker = rospy.Publisher("~force_marker", Marker, queue_size=2)
+        self.pub_force_norm = rospy.Publisher("~force_norm", Float64, queue_size=2)
+        self.marker_last_pub = 0.0
+        self.marker_f = None   # filtered force for display
+        self.marker_t = None   # filtered torque for display
+        self.marker_last_t = None
 
         self.lock = threading.Lock()
         self.n_frames = 0
@@ -112,6 +143,59 @@ class BotaStreamNode:
                      if self.last_rx is not None and age is not None and age < 1.0 else "n/a")
         return stat
 
+    # -- RViz arrow ------------------------------------------------------------
+    def _lowpass(self, prev, x, dt):
+        if prev is None or self.marker_filter_hz <= 0.0 or dt <= 0.0:
+            return list(x)
+        a = dt / (dt + 1.0 / (2.0 * 3.141592653589793 * self.marker_filter_hz))
+        return [p + a * (v - p) for p, v in zip(prev, x)]
+
+    def _arrow(self, stamp, mid, vec, scale, rgba):
+        m = Marker()
+        m.header.stamp = stamp
+        m.header.frame_id = self.marker_frame
+        m.ns = "bota_force"
+        m.id = mid
+        m.type = Marker.ARROW
+        m.action = Marker.ADD
+        m.points = [Point(0.0, 0.0, 0.0), Point(vec[0] * scale, vec[1] * scale, vec[2] * scale)]
+        m.scale.x = 0.012   # shaft diameter [m]
+        m.scale.y = 0.03    # head diameter
+        m.scale.z = 0.04    # head length
+        m.color.r, m.color.g, m.color.b, m.color.a = rgba
+        m.lifetime = rospy.Duration(0.5)   # vanishes when the stream stops
+        m.pose.orientation.w = 1.0
+        return m
+
+    def update_marker(self, f, stamp):
+        """Filter for display, publish |F| and the arrow at marker/rate."""
+        t = stamp.to_sec()
+        dt = (t - self.marker_last_t) if self.marker_last_t is not None else 0.0
+        self.marker_last_t = t
+        sign = -1.0 if self.marker_negate else 1.0
+        self.marker_f = self._lowpass(self.marker_f, [sign * v for v in f.force], dt)
+        if self.marker_show_torque:
+            self.marker_t = self._lowpass(self.marker_t, [sign * v for v in f.torque], dt)
+        if t - self.marker_last_pub < self.marker_period:
+            return
+        self.marker_last_pub = t
+        fx, fy, fz = self.marker_f
+        norm = (fx * fx + fy * fy + fz * fz) ** 0.5
+        self.pub_force_norm.publish(Float64(norm))
+        if not self.marker_enable or self.pub_marker.get_num_connections() == 0:
+            return
+        if norm < self.marker_min_force:
+            m = Marker()
+            m.header.stamp = stamp
+            m.header.frame_id = self.marker_frame
+            m.ns, m.id, m.action = "bota_force", 0, Marker.DELETE
+            self.pub_marker.publish(m)
+        else:
+            self.pub_marker.publish(self._arrow(stamp, 0, self.marker_f, self.marker_scale, self.marker_color))
+        if self.marker_show_torque and self.marker_t is not None:
+            self.pub_marker.publish(self._arrow(stamp, 1, self.marker_t, self.marker_scale * 10.0,
+                                                [0.1, 0.4, 1.0, 0.9]))
+
     # -- main loop -----------------------------------------------------------
     def stamp_for(self, f, rx_ns):
         if self.stamp_source != "sensor":
@@ -163,6 +247,7 @@ class BotaStreamNode:
             w.wrench.force.x, w.wrench.force.y, w.wrench.force.z = f.force
             w.wrench.torque.x, w.wrench.torque.y, w.wrench.torque.z = f.torque
             self.pub_wrench.publish(w)
+            self.update_marker(f, stamp)
 
             if self.pub_imu.get_num_connections() > 0:
                 imu = Imu()

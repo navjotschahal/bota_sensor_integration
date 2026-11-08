@@ -6,7 +6,8 @@
   2) start:  rosrun bota_ft_sensor bota_container.sh start bota_socket.json
   3) this:   roslaunch bota_ft_sensor bota_ft_sensor.launch
 
-  Topics: /bota/wrench, /bota/imu, /bota/temperature; service /bota/tare.
+  Topics: /bota/wrench, /bota/imu, /bota/temperature, /bota/force_marker,
+  /bota/force_norm; service /bota/tare. rviz:=true opens the arrow view.
   Set start_container:=true to run step 2 from here (needs docker group).
 -->
 <launch>
@@ -19,6 +20,10 @@
   <arg name="start_container"  default="false"/>
   <arg name="driver_config"    default="bota_binary.json"
        doc="file in docker/config/ used when start_container is true"/>
+  <arg name="rviz"             default="false" doc="open RViz with the force arrow view"/>
+  <arg name="marker_frame"     default="$(arg frame_id)" doc="frame the force arrow is drawn in"/>
+  <arg name="marker_scale"     default="0.02" doc="metres of arrow per newton"/>
+  <arg name="marker_negate"    default="false" doc="draw the reaction force instead of the measured one"/>
 
   <node if="$(arg start_container)" name="bota_container" pkg="bota_ft_sensor"
         type="bota_container.sh" args="start $(arg driver_config)" output="screen"/>
@@ -30,6 +35,12 @@
     <param name="frame_id"        value="$(arg frame_id)"/>
     <param name="stamp_source"    value="$(arg stamp_source)"/>
     <param name="publish_invalid" value="$(arg publish_invalid)"/>
+    <param name="marker/frame_id" value="$(arg marker_frame)"/>
+    <param name="marker/scale"    value="$(arg marker_scale)"/>
+    <param name="marker/negate"   value="$(arg marker_negate)"/>
     <rosparam command="load" file="$(find bota_ft_sensor)/config/stream_node.yaml"/>
   </node>
+
+  <node if="$(arg rviz)" name="bota_rviz" pkg="rviz" type="rviz"
+        args="-d $(find bota_ft_sensor)/config/bota_force.rviz" output="screen"/>
 </launch>

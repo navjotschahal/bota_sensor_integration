@@ -29,11 +29,12 @@ sensor --(Bota Socket / EtherCAT / USB)--> [container: bota-driver + bota_forwar
 | `docker/bota_forwarder.py` | runs in the container; lifecycle (configure, tare, activate), blocking reads, UDP out, control port |
 | `docker/config/*.json` | driver configs per interface (USB/Bota Binary = default, Bota Socket, EtherCAT Gen A / Gen 0) |
 | `src/bota_ft_sensor/stream_protocol.py` | datagram layout, pack/unpack, control requests |
-| `scripts/bota_stream_node.py` | ROS node: publishes wrench/imu/temperature, `~tare` service, `/diagnostics` |
+| `scripts/bota_stream_node.py` | ROS node: wrench/imu/temperature topics, RViz force arrow, `~tare` service, `/diagnostics` |
 | `scripts/bota_container.sh` | `build / start <config> / stop / logs / status / shell` |
 | `scripts/bota_stream_probe.py` | ROS-free check: `--status`, `--tare`, `--listen N` |
 | `scripts/bota_tare.py` | calls `/bota/tare` |
-| `launch/bota_ft_sensor.launch` | starts the node (optionally the container too) |
+| `launch/bota_ft_sensor.launch` | starts the node (optionally the container and RViz too) |
+| `config/bota_force.rviz` | RViz view: force arrow, sensor axes, TF |
 
 ## One-time setup
 
@@ -93,13 +94,30 @@ Without ROS: `rosrun bota_ft_sensor bota_stream_probe.py --listen 3`.
 
 Topics (node name `bota` by default): `~wrench` (`geometry_msgs/WrenchStamped`),
 `~imu` (`sensor_msgs/Imu`, no orientation), `~temperature`
-(`sensor_msgs/Temperature`, every 100th frame), `/diagnostics`.
+(`sensor_msgs/Temperature`, every 100th frame), `~force_marker`
+(`visualization_msgs/Marker`, RViz arrow of the measured force), `~force_norm`
+(`std_msgs/Float64`, |F| for rqt_plot), `/diagnostics`.
 Service `~tare` (`std_srvs/Trigger`): deactivates the driver, tares, re-activates
 (a few frames are skipped). Parameters: `frame_id`, `data_port`, `control_port`,
 `control_host`, `stamp_source` (`receive` or `sensor`), `publish_invalid`, `timeout`.
 
 Status bits from the sensor (throttled, overrange, invalid, raw) are forwarded
 unchanged. Frames with `invalid` set are dropped unless `publish_invalid` is true.
+
+### RViz force arrow
+
+```bash
+roslaunch bota_ft_sensor bota_ft_sensor.launch rviz:=true
+```
+
+The arrow is drawn at the origin of `marker/frame_id` (defaults to `frame_id`),
+scaled by `marker/scale` metres per newton, low-passed at `marker/filter_hz` for
+a steady display and published at `marker/rate` (30 Hz). `marker_negate:=true`
+draws the reaction force (what the robot feels) instead of the measured one;
+`marker/show_torque: true` adds a blue torque arrow. The data topics are never
+filtered; only the arrow is. The TF from the sensor to the robot is left to the
+consumer: once the mocap-tracked probe exists, publish `world -> <frame_id>` and
+set the RViz fixed frame to the robot base to see the arrow at the contact point.
 
 ## Multiple sensors
 

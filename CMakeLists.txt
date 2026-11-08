@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_msgs
   std_srvs
+  visualization_msgs
   diagnostic_updater
   diagnostic_msgs
 )
@@ -16,7 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_python_setup()
 
 catkin_package(
-  CATKIN_DEPENDS rospy geometry_msgs sensor_msgs std_msgs std_srvs diagnostic_updater diagnostic_msgs
+  CATKIN_DEPENDS rospy geometry_msgs sensor_msgs std_msgs std_srvs visualization_msgs diagnostic_updater diagnostic_msgs
 )
 
 catkin_install_python(PROGRAMS
