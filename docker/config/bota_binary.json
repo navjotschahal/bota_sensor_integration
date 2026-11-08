@@ -1,0 +1,18 @@
+{
+    "driver_config": {
+        "product_name": "BFT-SENS-IND2-B",
+        "serial_number": "SN001597",
+        "communication_interface_name": "Bota_Binary",
+        "communication_interface_params": {
+            "com_port": "/dev/ttyACM0",
+            "baudrate": 460800
+        },
+        "sensor_operation_params": {
+            "app_mode": 1,
+            "app_submode": 11
+        },
+        "driver_operation_params": {
+            "transform_imu_to_wrench_frame": false
+        }
+    }
+}

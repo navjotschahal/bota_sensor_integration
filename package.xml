@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>bota_ft_sensor</name>
+  <version>0.1.0</version>
+  <description>
+    Bota Systems force-torque sensor integration for ROS 1 Noetic. The official
+    Bota Gen A driver runs in a Docker container (it needs glibc 2.34) and streams
+    frames over local UDP; this package receives that stream and publishes it.
+  </description>
+  <maintainer email="nschahal@seas.upenn.edu">Navjot Singh Chahal</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>rospy</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>diagnostic_updater</depend>
+  <depend>diagnostic_msgs</depend>
+
+  <export>
+  </export>
+</package>

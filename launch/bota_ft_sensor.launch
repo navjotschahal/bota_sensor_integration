@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!--
+  Bota F/T sensor via the containerized official driver.
+
+  1) once:   rosrun bota_ft_sensor bota_container.sh build
+  2) start:  rosrun bota_ft_sensor bota_container.sh start bota_socket.json
+  3) this:   roslaunch bota_ft_sensor bota_ft_sensor.launch
+
+  Topics: /bota/wrench, /bota/imu, /bota/temperature; service /bota/tare.
+  Set start_container:=true to run step 2 from here (needs docker group).
+-->
+<launch>
+  <arg name="node_name"        default="bota"/>
+  <arg name="frame_id"         default="bota_ft_sensor"/>
+  <arg name="data_port"        default="50100"/>
+  <arg name="control_port"     default="50101"/>
+  <arg name="stamp_source"     default="receive"/>
+  <arg name="publish_invalid"  default="false"/>
+  <arg name="start_container"  default="false"/>
+  <arg name="driver_config"    default="bota_binary.json"
+       doc="file in docker/config/ used when start_container is true"/>
+
+  <node if="$(arg start_container)" name="bota_container" pkg="bota_ft_sensor"
+        type="bota_container.sh" args="start $(arg driver_config)" output="screen"/>
+
+  <node name="$(arg node_name)" pkg="bota_ft_sensor" type="bota_stream_node.py"
+        output="screen" respawn="true" respawn_delay="2">
+    <param name="data_port"       value="$(arg data_port)"/>
+    <param name="control_port"    value="$(arg control_port)"/>
+    <param name="frame_id"        value="$(arg frame_id)"/>
+    <param name="stamp_source"    value="$(arg stamp_source)"/>
+    <param name="publish_invalid" value="$(arg publish_invalid)"/>
+    <rosparam command="load" file="$(find bota_ft_sensor)/config/stream_node.yaml"/>
+  </node>
+</launch>

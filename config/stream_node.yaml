@@ -1,0 +1,3 @@
+# Parameters of bota_stream_node.py not exposed as launch args.
+control_host: 127.0.0.1   # where the forwarder's control port lives (host networking -> localhost)
+timeout: 1.0              # s without frames before /diagnostics reports ERROR

@@ -1,0 +1,16 @@
+{
+    "driver_config": {
+        "product_name": "BFT-xxxx-xx-xx",
+        "serial_number": "SN000000",
+        "communication_interface_name": "CANopen_over_EtherCAT_gen0",
+        "communication_interface_params": {
+            "network_interface": "enx005062204185"
+        },
+        "sensor_operation_params": {
+            "sinc_length": 128
+        },
+        "driver_operation_params": {
+            "transform_imu_to_wrench_frame": false
+        }
+    }
+}

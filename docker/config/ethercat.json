@@ -1,0 +1,17 @@
+{
+    "driver_config": {
+        "product_name": "BFT-xxxx-xx-xx",
+        "serial_number": "SN000000",
+        "communication_interface_name": "CANopen_over_EtherCAT",
+        "communication_interface_params": {
+            "network_interface": "enx005062204185"
+        },
+        "sensor_operation_params": {
+            "app_mode": 2,
+            "app_submode": 11
+        },
+        "driver_operation_params": {
+            "transform_imu_to_wrench_frame": true
+        }
+    }
+}
