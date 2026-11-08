@@ -33,6 +33,7 @@ sensor --(Bota Socket / EtherCAT / USB)--> [container: bota-driver + bota_forwar
 | `scripts/bota_container.sh` | `build / start <config> / stop / logs / status / shell` |
 | `scripts/bota_stream_probe.py` | ROS-free check: `--status`, `--tare`, `--listen N` |
 | `scripts/bota_tare.py` | calls `/bota/tare` |
+| `scripts/bota_apcf_compare.py`, `launch/bota_apcf_compare.launch` | live sensor-vs-APCF tests: RViz markers, matplotlib window, CSVs |
 | `launch/bota_ft_sensor.launch` | starts the node (optionally the container and RViz too) |
 | `config/bota_force.rviz` | RViz view: force arrow, sensor axes, TF |
 
@@ -118,6 +119,35 @@ draws the reaction force (what the robot feels) instead of the measured one;
 filtered; only the arrow is. The TF from the sensor to the robot is left to the
 consumer: once the mocap-tracked probe exists, publish `world -> <frame_id>` and
 set the RViz fixed frame to the robot base to see the arrow at the contact point.
+
+## Sensor vs APCF joint-grid estimator, without mocap
+
+`bota_apcf_compare.py` runs the frame-independent tests live and records them:
+
+```bash
+roslaunch bota_ft_sensor bota_ft_sensor.launch            # sensor node (no rviz needed)
+roslaunch bota_ft_sensor bota_apcf_compare.launch         # markers + live plot + CSVs
+# APCF grid observer running; in its RViz add MarkerArray on /bota_compare/markers
+```
+
+* **RViz** (`base_frame`, default `iiwa_link_0`): a gauge beside the robot
+  (`gauge_xyz`) with the sensor force arrow in sensor axes, red/blue bars for
+  |F| sensor vs |f| APCF, a red sphere at APCF's contact point sized by the sensor
+  |F|, and a text HUD with ratio, in_contact, link, existence and the last push summary.
+* **Live plot** (system matplotlib, TkAgg): |F| sensor vs APCF with in_contact
+  shading, APCF detector statistic vs threshold and existence, sensor fx/fy/fz.
+* **CSV** in `out_dir` (default `~/bota_tests/<timestamp>/`): `samples.csv`
+  (one row per APCF message with the time-matched sensor frame), `sensor.csv`
+  (raw 1 kHz stream), `pushes.csv` (per push: duration, mean |F| both, ratio,
+  detection on/off latency, link, existence, angle-pair error vs previous pushes,
+  Procrustes residual).
+
+Pushes are segmented from the sensor alone (`thr_on` 1 N on, `thr_off` 0.5 N
+off). The angle-pair test compares the angle between two pushes as seen by the
+sensor with the same angle as seen by APCF, which is invariant to the unknown
+sensor orientation as long as the grip stays fixed. Also record a rosbag of
+`/bota/wrench /apcf/contacts /apcf/in_contact /apcf/status /tf /tf_static` for
+offline work.
 
 ## Multiple sensors
 

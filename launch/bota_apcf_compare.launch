@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!--
+  Live comparison of the Bota sensor against the APCF joint-grid estimator.
+  Needs: bota_ft_sensor.launch (sensor node) and the APCF grid observer running.
+  Add a MarkerArray display on /bota_compare/markers to the APCF RViz.
+  CSVs land in out_dir (default ~/bota_tests/<timestamp>/).
+-->
+<launch>
+  <arg name="base_frame"  default="iiwa_link_0"/>
+  <arg name="out_dir"     default=""/>
+  <arg name="plot"        default="true"/>
+  <arg name="record_raw"  default="true"/>
+  <arg name="thr_on"      default="1.0"/>
+  <arg name="gauge_xyz"   default="[0.6, -0.7, 0.3]"/>
+
+  <!-- launch-prefix: the catkin wrappers in this workspace use the cpf venv python, which has
+       no matplotlib; the system interpreter has it and still sees rospy via PYTHONPATH. -->
+  <node name="bota_compare" pkg="bota_ft_sensor" type="bota_apcf_compare.py" output="screen" required="true"
+        launch-prefix="/usr/bin/python3">
+    <param name="base_frame"        value="$(arg base_frame)"/>
+    <param name="out_dir"           value="$(arg out_dir)"/>
+    <param name="plot"              value="$(arg plot)"/>
+    <param name="record_sensor_raw" value="$(arg record_raw)"/>
+    <param name="thr_on"            value="$(arg thr_on)"/>
+    <rosparam param="gauge_xyz" subst_value="true">$(arg gauge_xyz)</rosparam>
+  </node>
+</launch>

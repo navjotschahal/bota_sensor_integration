@@ -24,6 +24,7 @@ catkin_install_python(PROGRAMS
   scripts/bota_stream_node.py
   scripts/bota_tare.py
   scripts/bota_stream_probe.py
+  scripts/bota_apcf_compare.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
