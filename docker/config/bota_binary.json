@@ -1,6 +1,6 @@
 {
     "driver_config": {
-        "product_name": "BFT-SENS-IND2-B",
+        "product_name": "BFT-SENS-IND2-B4",
         "serial_number": "SN001597",
         "communication_interface_name": "Bota_Binary",
         "communication_interface_params": {

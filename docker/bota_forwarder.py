@@ -9,6 +9,7 @@ get_expected_timestep_us(), get_driver_version_string(). tare() is only legal in
 INACTIVE, so a runtime tare request deactivates, tares, and re-activates.
 
 Environment:
+    BOTA_SENSOR_NAME    registry name of this sensor (log prefix, status reply)
     BOTA_CONFIG         path to the driver JSON config (required)
     BOTA_DATA_HOST      destination of the data stream (default 127.0.0.1)
     BOTA_DATA_PORT      destination UDP port (default 50100)
@@ -30,7 +31,7 @@ import bota_driver
 
 from bota_ft_sensor import stream_protocol as sp
 
-LOG_PREFIX = "[bota_forwarder] "
+LOG_PREFIX = "[bota_forwarder%s] " % (":" + os.environ["BOTA_SENSOR_NAME"] if os.environ.get("BOTA_SENSOR_NAME") else "")
 
 
 def log(msg):
@@ -215,6 +216,7 @@ class Forwarder:
             "expected_dt_s": self.expected_dt,
             "last_frame_age_s": (time.time() - self.last_frame_time) if self.last_frame_time else None,
             "config": self.config_path,
+            "sensor": os.environ.get("BOTA_SENSOR_NAME", ""),
             "protocol_version": sp.PROTOCOL_VERSION,
         }
 

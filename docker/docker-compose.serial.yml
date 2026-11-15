@@ -1,0 +1,9 @@
+# Override added by bota_container.sh for sensors on a serial/USB link (Bota USB-C
+# adapter = CDC-ACM, or RS-422 through an FTDI dongle). The host device (udev symlink
+# /dev/bota/<sensor> resolved to the real node, or the live tty matched by USB serial)
+# appears inside the container as /dev/ttyACM0, which is what every bota_binary*.json
+# names as com_port. The container runs as root: no dialout membership needed.
+services:
+  bota_driver:
+    devices:
+      - ${BOTA_SERIAL_DEV:?set by bota_container.sh}:/dev/ttyACM0

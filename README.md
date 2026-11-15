@@ -27,7 +27,10 @@ On a 22.04+ host the same forwarder runs natively without the container.
 | `docker/bota_forwarder.py` | runs in the container: lifecycle (configure, tare, activate), blocking reads, UDP out, control port |
 | `docker/config/*.json` | driver configs per interface (USB/Bota Binary = default, Bota Socket, EtherCAT Gen A / Gen 0) |
 | `src/bota_ft_sensor/stream_protocol.py` | the wire format: datagram layout, pack/unpack, control requests. The contract for all clients. |
-| `scripts/bota_container.sh` | `build / start [config] / stop / restart / logs / status / shell` |
+| `config/sensors.yaml` | **sensor registry**: identity (USB serial), model, generation, driver config, device, ports, ROS frame/body per sensor |
+| `scripts/bota_sensors.py` | `list` (which registered sensor is plugged where), `identify` (snippet for a new one), `udev` (stable `/dev/bota/<name>`), `env` |
+| `scripts/bota_container.sh` | `build / start|stop|restart <sensor|all> / logs|shell <sensor> / status`, one compose project per sensor |
+| `docker/docker-compose.serial.yml` | override adding the serial device; applied automatically for USB/RS-422 sensors |
 | `scripts/bota_stream_probe.py` | ROS-free check: `--status`, `--tare`, `--listen N` |
 
 Clients are kept out of this repo. The ROS 1 nodes (sensor publisher, tare,
@@ -48,7 +51,7 @@ to UDP 50101, JSON reply. Full definition in `stream_protocol.py`.
 
 ```bash
 sudo usermod -aG docker $USER            # then log out and back in
-rosrun bota_ft_sensor bota_container.sh build   # or: docker compose -f docker/docker-compose.yml build
+rosrun bota_ft_sensor bota_container.sh build   # image shared by all sensor containers
 ```
 
 The package is a minimal catkin package only so that the python module lands
@@ -81,22 +84,57 @@ Operation parameters are authoritative from the config tool's *Download Config*.
 ## Run
 
 ```bash
-rosrun bota_ft_sensor bota_container.sh start          # USB sensor; restart policy keeps it up
-rosrun bota_ft_sensor bota_container.sh logs           # "ACTIVE, streaming ... 1010 Hz"
-rosrun bota_ft_sensor bota_stream_probe.py --listen 3  # frames, rate, lost count
-rosrun bota_ft_sensor bota_stream_probe.py --tare
+rosrun bota_ft_sensor bota_sensors.py list             # which registered sensor is on which port
+rosrun bota_ft_sensor bota_container.sh start all      # or: start probe_a | probe_b
+rosrun bota_ft_sensor bota_container.sh status         # registry view + live driver status per sensor
+rosrun bota_ft_sensor bota_container.sh logs probe_b   # "ACTIVE, streaming to 127.0.0.1:50110 ..."
+rosrun bota_ft_sensor bota_stream_probe.py --listen 3 --port 50110
+rosrun bota_ft_sensor bota_stream_probe.py --tare --port 50111
 ```
 
-Forwarder environment (compose): `BOTA_CONFIG`, `BOTA_DATA_HOST` (127.0.0.1),
-`BOTA_DATA_PORT` (50100), `BOTA_CONTROL_PORT` (50101), `BOTA_TARE_ON_START` (1),
-`BOTA_READ_MODE` (blocking | poll), `BOTA_SERIAL_DEV`.
+Forwarder environment (set by the script from the registry): `BOTA_SENSOR_NAME`,
+`BOTA_CONFIG`, `BOTA_DATA_PORT`, `BOTA_CONTROL_PORT`, `BOTA_SERIAL_DEV`; honoured
+if exported before `start`: `BOTA_DATA_HOST` (127.0.0.1), `BOTA_TARE_ON_START` (1),
+`BOTA_READ_MODE` (blocking | poll).
 
-Verified on hardware: ~1017 Hz, 0 lost frames, tare OK, ~0.06 ms loopback latency.
+Verified on hardware 2026-11-15, both at once: probe_a (Gen A, USB) ~1017 Hz on
+udp/50100, probe_b (Gen 0, RS-422 at 460800 baud) ~399 Hz on udp/50110, 0 lost.
 
-## Multiple sensors
+## Multiple sensors: the registry
 
-One container per sensor with distinct `BOTA_DATA_PORT` / `BOTA_CONTROL_PORT`
-and compose project name; each client reads its own port.
+`config/sensors.yaml` is the single source of truth for every sensor. One entry
+per sensor with its **identity** (USB vendor/product/serial of the adapter or
+dongle it hangs on, unique and independent of PC or USB port), model, generation,
+driver config, stable device name, UDP data/control ports (keep pairs 10 apart)
+and the ROS-side names (frame, Motive body, calibration file). The container
+script, the identification tool and the ROS launch generator in `cpf/src/ros1/
+bota_nodes` all read this file, so a sensor is defined exactly once.
+
+Which physical sensor is `probe_a` or `probe_b` on any PC:
+
+```bash
+rosrun bota_ft_sensor bota_sensors.py list        # present/absent + live tty per registered name
+rosrun bota_ft_sensor bota_sensors.py identify    # unknown device plugged in -> yaml snippet to paste
+rosrun bota_ft_sensor bota_sensors.py udev --install   # once per PC: /dev/bota/<name> symlinks (sudo)
+```
+
+The container script matches the USB serial live, so it works before the udev
+rules are installed; the rules only add the stable `/dev/bota/<name>` names.
+
+Adding a sensor: plug it in, `identify`, paste the snippet under `sensors:`, set
+model/generation, pick a driver config in `docker/config/` (Gen A `bota_binary.json`
+style with `app_mode/app_submode`, Gen 0 `bota_binary_gen0.json` style with
+`sinc_length`, or `bota_socket.json` / `ethercat*.json` for network links, which
+need no `usb`/`device`), pick the next free port pair, `start <name>`.
+
+Current registry: `probe_a` = BFT-SENS-IND2-B4 (Gen A, Bota USB-C adapter,
+CDC-ACM, serial 3474375F3335), `probe_b` = BFT-SENS-SER-M8 (Gen 0, Bota serial
+adapter + FTDI FT232R dongle, serial AV0LW0P3, RS-422 460800 baud).
+
+Drivers and clients may live on different machines: start the container with
+`BOTA_DATA_HOST=<client ip>` and point the client at that host and port. The
+frame carries the forwarder host's `time_ns`, so sync the clocks (chrony/PTP)
+when they are not the same machine.
 
 ## Roadmap
 

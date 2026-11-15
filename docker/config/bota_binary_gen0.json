@@ -1,0 +1,17 @@
+{
+    "driver_config": {
+        "product_name": "BFT-SENS-SER-M8",
+        "serial_number": "SN000000",
+        "communication_interface_name": "Bota_Binary_gen0",
+        "communication_interface_params": {
+            "com_port": "/dev/ttyACM0",
+            "baudrate": 460800
+        },
+        "sensor_operation_params": {
+            "sinc_length": 112
+        },
+        "driver_operation_params": {
+            "transform_imu_to_wrench_frame": false
+        }
+    }
+}

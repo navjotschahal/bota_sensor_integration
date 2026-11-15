@@ -1,13 +1,16 @@
-# Run from the package root:  docker compose -f docker/docker-compose.yml up -d
-# or use scripts/bota_container.sh. Host networking is required so the data
-# stream reaches 127.0.0.1 on the host and so EtherCAT can open the raw NIC.
+# One driver container per sensor. Do not run `docker compose` here by hand: use
+# scripts/bota_container.sh <cmd> <sensor>, which reads config/sensors.yaml and sets
+# the project name (bota_<sensor>), ports, config and device, and adds
+# docker-compose.serial.yml when the sensor hangs on a serial/USB adapter.
+# Host networking: the stream must reach 127.0.0.1 on the host, and EtherCAT needs
+# the raw NIC.
 services:
   bota_driver:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     image: bota_ft_sensor/driver:latest
-    container_name: bota_driver
+    container_name: bota_${BOTA_SENSOR_NAME:-driver}
     network_mode: host
     restart: unless-stopped
     # NET_RAW/NET_ADMIN only matter for CANopen_over_EtherCAT (raw sockets).
@@ -17,15 +20,10 @@ services:
     volumes:
       - ./config:/config:ro
     environment:
+      BOTA_SENSOR_NAME: ${BOTA_SENSOR_NAME:-driver}
       BOTA_CONFIG: ${BOTA_CONFIG:-/config/bota_binary.json}
       BOTA_DATA_HOST: ${BOTA_DATA_HOST:-127.0.0.1}
       BOTA_DATA_PORT: ${BOTA_DATA_PORT:-50100}
       BOTA_CONTROL_PORT: ${BOTA_CONTROL_PORT:-50101}
       BOTA_TARE_ON_START: ${BOTA_TARE_ON_START:-1}
       BOTA_READ_MODE: ${BOTA_READ_MODE:-blocking}
-    # USB (Bota_Binary) sensor: the Bota adapter box enumerates as a CDC-ACM port
-    # (/dev/serial/by-id/usb-Bota_Systems_Bota_Systems_Force_Torque_Sensor_*). The
-    # container runs as root, so no dialout membership is needed on the host.
-    # Override with BOTA_SERIAL_DEV if the port is not ttyACM0.
-    devices:
-      - ${BOTA_SERIAL_DEV:-/dev/ttyACM0}:/dev/ttyACM0

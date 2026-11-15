@@ -1,0 +1,59 @@
+# Sensor registry: the single source of truth for every Bota sensor in the lab.
+# Used by scripts/bota_container.sh (driver containers), scripts/bota_sensors.py
+# (identification, udev rules) and the ROS launch generator in cpf bota_nodes.
+#
+# Identity is the USB serial string of the adapter/dongle the sensor hangs on,
+# which is unique and fixed regardless of PC or USB port. Run
+#   bota_sensors.py list        to see which registered sensor is plugged where
+#   bota_sensors.py identify    to get a snippet for an unknown device
+#   bota_sensors.py udev        to print the udev rules giving /dev/bota/<name>
+#
+# Ports: each sensor gets its own UDP data/control pair; keep 10 apart.
+# device: udev symlink created by the rules above; the container script falls
+#         back to matching the USB serial live when the symlink is missing.
+
+sensors:
+  probe_a:
+    description: SensONE Industrial Gen A in the first force probe (NSCbotaProbeA)
+    model: BFT-SENS-IND2-B4
+    generation: genA
+    link: usb-cdc                         # Bota adapter box USB-C, bus powered
+    usb: {vendor: "0483", product: "5740", serial: "3474375F3335"}
+    device: /dev/bota/probe_a
+    driver_config: bota_binary.json
+    data_port: 50100
+    control_port: 50101
+    ros:
+      frame_id: probe_a_sensor
+      probe:
+        body: NSCbotaProbeA               # Motive rigid body
+        calib: probe_calib_NSCbotaProbeA.yaml
+
+  probe_b:
+    description: SensONE Serial M8 Gen 0 in the second force probe (NSCbotaProbeB)
+    model: BFT-SENS-SER-M8
+    generation: gen0
+    link: rs422-ftdi                      # Bota serial adapter -> FTDI FT232R dongle, external power
+    usb: {vendor: "0403", product: "6001", serial: "AV0LW0P3"}
+    device: /dev/bota/probe_b
+    driver_config: bota_binary_gen0.json
+    data_port: 50110
+    control_port: 50111
+    ros:
+      frame_id: probe_b_sensor
+      probe:
+        body: NSCbotaProbeB
+        calib: probe_calib_NSCbotaProbeB.yaml
+
+# Template for the next sensor: copy, pick free ports, fill usb from
+# `bota_sensors.py identify`, add a driver config in docker/config/.
+#  probe_c:
+#    model: ...
+#    generation: genA | gen0
+#    link: usb-cdc | rs422-ftdi | ethernet | ethercat
+#    usb: {vendor: "....", product: "....", serial: "..."}     # omit for ethernet/ethercat
+#    device: /dev/bota/probe_c                                   # omit for ethernet/ethercat
+#    driver_config: ...json
+#    data_port: 50120
+#    control_port: 50121
+#    ros: {frame_id: probe_c_sensor, probe: {body: ..., calib: probe_calib_....yaml}}

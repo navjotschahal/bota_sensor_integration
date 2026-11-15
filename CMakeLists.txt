@@ -11,6 +11,7 @@ catkin_package()
 
 catkin_install_python(PROGRAMS
   scripts/bota_stream_probe.py
+  scripts/bota_sensors.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -18,6 +19,6 @@ install(PROGRAMS scripts/bota_container.sh
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-install(DIRECTORY docker
+install(DIRECTORY docker config
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
