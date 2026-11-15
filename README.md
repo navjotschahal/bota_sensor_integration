@@ -47,12 +47,26 @@ force xyz [N], torque xyz [Nm], acceleration xyz [m/s^2], angular rate xyz
 [rad/s], temperature [C]. Control: JSON `{"cmd": "tare" | "status" | "ping"}`
 to UDP 50101, JSON reply. Full definition in `stream_protocol.py`.
 
-## One-time setup
+## Fresh PC checklist (verified from scratch 2026-11-15 with both sensors)
 
 ```bash
-sudo usermod -aG docker $USER            # then log out and back in
-rosrun bota_ft_sensor bota_container.sh build   # image shared by all sensor containers
+sudo usermod -aG docker $USER                          # once, then log out and back in
+rosrun bota_ft_sensor bota_container.sh build          # ~20 s: pulls the latest bota-driver wheel
+rosrun bota_ft_sensor bota_sensors.py list             # which registered sensor is on which tty (by USB serial)
+rosrun bota_ft_sensor bota_sensors.py identify         # unknown dongle -> yaml snippet for the registry
+rosrun bota_ft_sensor bota_sensors.py udev --install   # optional, sudo: stable /dev/bota/<name>
+rosrun bota_ft_sensor bota_container.sh start all      # one container per sensor, ACTIVE within ~10 s
+rosrun bota_ft_sensor bota_container.sh status
+rosrun bota_ft_sensor bota_stream_probe.py --listen 3 --port 50100   # probe_a: 1017 Hz, 0 lost
+rosrun bota_ft_sensor bota_stream_probe.py --listen 3 --port 50110   # probe_b: 399 Hz, 0 lost
 ```
+
+The driver tares on container start with whatever load the probe carries at that
+moment, so after every `start` tare each sensor once more with the probe unloaded
+(`bota_stream_probe.py --tare --port <control_port>`, or the ROS `/<name>/tare`
+service). A stale offset shows as a constant force that looks like a reversed
+vector under a light push. The tty names move between boots (`ttyUSB0` one day,
+`ttyUSB2` the next); the scripts follow the USB serial, so that is harmless.
 
 The package is a minimal catkin package only so that the python module lands
 on the workspace path; nothing in it needs ROS. Without ROS: `cd` here and
